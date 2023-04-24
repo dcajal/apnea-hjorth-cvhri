@@ -11,19 +11,16 @@ for kk = 3:length(dirlist)
     files{kk-2} = dirlist(kk).name;
 end
 
-for kk = 1:length(files)
+for kk = 1%:length(files)
 
     subject = split(files{kk},'_');
     subject = subject(1);
     load(strcat('dataset/ppg_signals/',string(subject),'_pulse.mat'),'sig'); ppg = sig; clear sig
-    load(strcat('dataset/ecg_signals/',string(subject),'_ecg.mat'),'sig'); ecg = -sig; clear sig
     fprintf('Computing PPI from %s...',files{kk});
 
     % Preprocessing
     [bb, aa] = butter(3, 0.3*2/fs, 'high');
     ppgFiltered = filtfilt(bb, aa, ppg);
-    ecgFiltered = filtfilt(bb, aa, ecg);
-    ecgFiltered = normalize(ecgFiltered);
     [bb, aa] = butter(3, 30*2/fs, 'low');
     ppgFiltered = filtfilt(bb, aa, ppgFiltered);
     ppgFiltered = normalize(ppgFiltered);
@@ -45,7 +42,7 @@ for kk = 1:length(files)
     
     subject = split(files{kk},'_');
     subject = subject(1);
-    save(strcat('results/ppi/',string(subject),'_ppi.mat'),'ppi','ppiFs','tPpi');
+    %save(strcat('results/ppi/',string(subject),'_ppi.mat'),'ppi','ppiFs','tPpi');
 
     clear pulses ppgFiltered tn tPpg
     fprintf('Done\n')

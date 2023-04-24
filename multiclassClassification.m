@@ -155,7 +155,7 @@ corrects = []; % rate of correct detections
 for kk = 1:length(files)
 
     % Train
-    trainedClassifier = trainClassifier([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
+    trainedClassifier = trainClassifierOnlySpo2([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
        
     % Test subject out
     subject = split(files{kk},'_');
@@ -313,9 +313,7 @@ end; clear kk
     
 toc
 
-c = confusionmat(labelsTest,predictionsTest);
-plotconfusion(labelsTest',predictionsTest');
-
+c = confusionmat(labelsTest,predictionsTest); %#ok<*NASGU> 
 
 targets = zeros(3,length(labelsTest));
 outputs = zeros(3,length(predictionsTest));
@@ -325,16 +323,32 @@ targets(targetsIdx) = 1;
 outputs(outputsIdx) = 1;
 plotconfusion(targets,outputs);
 
+%% Save/Load results
+
+% save(strcat('results/classification/multiclassClassificationOnlySpo2.mat'), ...
+%     'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
+
+load(strcat('results/classification/multiclassClassification.mat'), ...
+    'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
+
+
+
 %% Exclude test errors
 
 % Load AHI
 load(strcat('results/AHI_new.mat'));
 
 % 33 was wake most of the time
-exclude = 33; 
-labelsTest(subjectTest~=kk,:) = nan;
-predictionsTest
-ahiDataset
+% 57 problems with nasal pressure signal. Not reliable annotations
+exclude = [33 57];
+
+for kk = 1:numel(exclude)
+    labelsTest(subjectTest==exclude(kk)) = nan;
+    predictionsTest(subjectTest==exclude(kk)) = nan;
+    cvhriTest(exclude(kk)) = nan;
+    corrects(exclude(kk)) = nan;
+    ahiDataset(exclude(kk)) = nan;
+end
 
 %% Segment detection
 
@@ -342,40 +356,83 @@ figure;
 stem(corrects*100); ylim([0 100])
 xlabel('Subject'); ylabel('Correct detections (%)')
 % hold on; yline(mean(corrects)*100,'--'); 
-hold on; plot(xlim,[mean(corrects)*100 mean(corrects)*100],'--'); 
-mean(corrects)
+hold on; plot(xlim,[mean(corrects,'omitnan')*100 mean(corrects,'omitnan')*100],'--'); 
+mean(corrects,'omitnan')
 
 % figure;
-% cm = confusionchart(labelsTest,predictionsTest);
-cm = confusionmat(labelsTest,predictionsTest)
-% cmValues = cm.NormalizedValues;
-cmValues = cm;
-precision = 100*cmValues(2,2)/(cmValues(2,2)+cmValues(2,1)) % TP/(TP+FP)
-recall = 100*cmValues(2,2)/(cmValues(2,2)+cmValues(1,2)) % TP/(TP+FN)
-accuracy = 100*(cmValues(1,1)+cmValues(2,2))/(cmValues(1,1)+cmValues(2,2)+cmValues(1,2)+cmValues(2,1)) % nCorrect/nTotal
+c = confusionmat(labelsTest,predictionsTest)
+targets = zeros(3,length(labelsTest(~isnan(labelsTest))));
+outputs = zeros(3,length(predictionsTest(~isnan(labelsTest))));
+targetsIdx = sub2ind(size(targets), labelsTest(~isnan(labelsTest))'+1, 1:length(labelsTest(~isnan(labelsTest))));
+outputsIdx = sub2ind(size(outputs), predictionsTest(~isnan(labelsTest))'+1, 1:length(predictionsTest(~isnan(labelsTest))));
+targets(targetsIdx) = 1;
+outputs(outputsIdx) = 1;
+plotconfusion(targets,outputs);
 
 %% Correlation
 
-[rhoPearson,pvalPearson] = corr(ahiDataset,cvhriTest,'Type','Pearson') %#ok<*ASGLU> 
-[rhoKendall,pvalKendall] = corr(ahiDataset,cvhriTest,'Type','Kendall')
-[rhoSpearman,pvalSpearman] = corr(ahiDataset,cvhriTest,'Type','Spearman')
+[rhoPearson,pvalPearson] = corr(ahiDataset,cvhriTest,'Type','Pearson','Rows','complete') %#ok<*ASGLU> 
 
 figure;
-plot(ahi,cvhriTest,'o'); 
+plot(ahiDataset,cvhriTest,'o'); 
 xlabel('AHI'); ylabel('CVHRI')
 hold on; xline(15,'--k');% yline(1/15,'--k')
-hold on; xline(30,'--k');% yline(1/30,'--k')
+hold on; xline(5,'--k');% yline(1/30,'--k')
 xlim([0 70])
 xticks(0:10:70)
 % hold on; plot([15 15],ylim,'--');% plot(xlim,[1/15 1/15],'--')
 
+% saveas(gca, 'results/images/multiclassCorrelationOnlyPPI.eps','epsc');
+
 %%
 
-[rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Pearson')
-[rhoKendall,pvalKendall] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Kendall')
-[rhoSpearman,pvalSpearman] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Spearman')
+[rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Pearson','Rows','complete')
+[rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset>=15),cvhriTest(ahiDataset>15),'Type','Pearson','Rows','complete')
 
-[rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset>15),cvhriTest(ahiDataset>15),'Type','Pearson')
-[rhoKendall,pvalKendall] = corr(ahiDataset(ahiDataset>15),cvhriTest(ahiDataset>15),'Type','Kendall')
-[rhoSpearman,pvalSpearman] = corr(ahiDataset(ahiDataset>15),cvhriTest(ahiDataset>15),'Type','Spearman')
+
+%%
+
+ahiGreaterThan15 = find(ahiDataset>=15);
+ahiLowerThan15 = find(ahiDataset<15);
+
+labelsTestAhiGreaterThan15 = [];
+predictionsTestAhiGreaterThan15 = [];
+for kk = 1:numel(ahiGreaterThan15)
+    labelsTestAhiGreaterThan15 = [labelsTestAhiGreaterThan15; labelsTest(subjectTest==ahiGreaterThan15(kk))];
+    predictionsTestAhiGreaterThan15 = [predictionsTestAhiGreaterThan15; predictionsTest(subjectTest==ahiGreaterThan15(kk))];
+end
+labelsTestAhiLowerThan15 = [];
+predictionsTestAhiLowerThan15 = [];
+for kk = 1:numel(ahiLowerThan15)
+    labelsTestAhiLowerThan15 = [labelsTestAhiLowerThan15; labelsTest(subjectTest==ahiLowerThan15(kk))];
+        predictionsTestAhiLowerThan15 = [predictionsTestAhiLowerThan15; predictionsTest(subjectTest==ahiLowerThan15(kk))];
+end
+
+c = confusionmat(labelsTestAhiGreaterThan15,predictionsTestAhiGreaterThan15)
+c = confusionmat(labelsTestAhiLowerThan15,predictionsTestAhiLowerThan15)
+
+%% Prepare vectors for logistic regression
+
+% Thresholds for AHI >=5 stratification
+isAhiGreaterThan5 = ahiDataset>=5;
+cvhriAhiLowerThan5 = cvhriTest(~isAhiGreaterThan5 & ~isnan(cvhriTest));
+cvhriAhiHigherThan5 = cvhriTest(isAhiGreaterThan5 & ~isnan(cvhriTest));
+
+cvhriForGreaterThan5 = [cvhriAhiHigherThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5(1:5)];
+labelsForGreaterThan5 = [true(68,1); false(68,1)]
+
+% cvhriForGreaterThan5 = [cvhriAhiHigherThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5(1:19)];
+% labelsForGreaterThan5 = [true(69,1); false(69,1)]
+
+
+% Thresholds for AHI >=15 stratification
+isAhiGreaterThan15 = ahiDataset>=15;
+cvhriAhiLowerThan15 = cvhriTest(~isAhiGreaterThan15 & ~isnan(cvhriTest));
+cvhriAhiHigherThan15 = cvhriTest(isAhiGreaterThan15 & ~isnan(cvhriTest));
+
+cvhriForGreaterThan15 = [cvhriAhiHigherThan15; cvhriAhiLowerThan15; cvhriAhiLowerThan15(1:5);];
+labelsForGreaterThan15 = [true(47,1); false(47,1)]
+
+% cvhriForGreaterThan15 = [cvhriAhiHigherThan15; cvhriAhiLowerThan15; cvhriAhiLowerThan15(1:2);];
+% labelsForGreaterThan15 = [true(48,1); false(48,1)]
 

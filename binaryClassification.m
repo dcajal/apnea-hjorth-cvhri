@@ -159,7 +159,7 @@ corrects = []; % rate of correct detections
 for kk = 1:length(files)
 
     % Train
-    trainedClassifier = trainBinaryClassifier([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
+    trainedClassifier = trainBinaryClassifierOnlySpo2([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
        
     % Test subject out
     subject = split(files{kk},'_');
@@ -312,8 +312,18 @@ end; clear kk
     
 toc
 
-c = confusionmat(labelsTest,predictionsTest);
+c = confusionmat(labelsTest,predictionsTest); %#ok<*NASGU> 
 plotconfusion(labelsTest',predictionsTest');
+
+%% Save/Load results
+
+% save(strcat('results/classification/binaryClassificationOnlySpo2.mat'), ...
+%     'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
+
+load(strcat('results/classification/binaryClassification.mat'), ...
+    'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
+
+
 
 %% Exclude test errors
 
@@ -321,10 +331,16 @@ plotconfusion(labelsTest',predictionsTest');
 load(strcat('results/AHI_new.mat'));
 
 % 33 was wake most of the time
-exclude = 33; 
-labelsTest(subjectTest~=kk,:) = nan;
-predictionsTest
-ahiDataset
+% 57 problems with nasal pressure signal. Not reliable annotations
+exclude = [33 57];
+
+for kk = 1:numel(exclude)
+    labelsTest(subjectTest==exclude(kk)) = nan;
+    predictionsTest(subjectTest==exclude(kk)) = nan;
+    cvhriTest(exclude(kk)) = nan;
+    corrects(exclude(kk)) = nan;
+    ahiDataset(exclude(kk)) = nan;
+end
 
 %% Segment detection
 
@@ -332,40 +348,50 @@ figure;
 stem(corrects*100); ylim([0 100])
 xlabel('Subject'); ylabel('Correct detections (%)')
 % hold on; yline(mean(corrects)*100,'--'); 
-hold on; plot(xlim,[mean(corrects)*100 mean(corrects)*100],'--'); 
-mean(corrects)
+hold on; plot(xlim,[mean(corrects,'omitnan')*100 mean(corrects,'omitnan')*100],'--'); 
+mean(corrects,'omitnan')
 
 % figure;
-% cm = confusionchart(labelsTest,predictionsTest);
-cm = confusionmat(labelsTest,predictionsTest)
-% cmValues = cm.NormalizedValues;
-cmValues = cm;
-precision = 100*cmValues(2,2)/(cmValues(2,2)+cmValues(2,1)) % TP/(TP+FP)
-recall = 100*cmValues(2,2)/(cmValues(2,2)+cmValues(1,2)) % TP/(TP+FN)
-accuracy = 100*(cmValues(1,1)+cmValues(2,2))/(cmValues(1,1)+cmValues(2,2)+cmValues(1,2)+cmValues(2,1)) % nCorrect/nTotal
+c = confusionmat(labelsTest,predictionsTest)
+plotconfusion(labelsTest',predictionsTest');
 
 %% Correlation
 
-[rhoPearson,pvalPearson] = corr(ahiDataset,cvhriTest,'Type','Pearson') %#ok<*ASGLU> 
-[rhoKendall,pvalKendall] = corr(ahiDataset,cvhriTest,'Type','Kendall')
-[rhoSpearman,pvalSpearman] = corr(ahiDataset,cvhriTest,'Type','Spearman')
+[rhoPearson,pvalPearson] = corr(ahiDataset,cvhriTest,'Type','Pearson','Rows','complete') %#ok<*ASGLU> 
 
 figure;
-plot(ahi,cvhriTest,'o'); 
+plot(ahiDataset,cvhriTest,'o'); 
 xlabel('AHI'); ylabel('CVHRI')
 hold on; xline(15,'--k');% yline(1/15,'--k')
-hold on; xline(30,'--k');% yline(1/30,'--k')
+hold on; xline(5,'--k');% yline(1/30,'--k')
 xlim([0 70])
 xticks(0:10:70)
 % hold on; plot([15 15],ylim,'--');% plot(xlim,[1/15 1/15],'--')
 
+% saveas(gca, 'results/images/binaryCorrelationOnlyPPI.eps','epsc');
+
 %%
 
-[rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Pearson')
-[rhoKendall,pvalKendall] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Kendall')
-[rhoSpearman,pvalSpearman] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Spearman')
+[rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Pearson','Rows','complete')
+[rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset>=15),cvhriTest(ahiDataset>15),'Type','Pearson','Rows','complete')
 
-[rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset>15),cvhriTest(ahiDataset>15),'Type','Pearson')
-[rhoKendall,pvalKendall] = corr(ahiDataset(ahiDataset>15),cvhriTest(ahiDataset>15),'Type','Kendall')
-[rhoSpearman,pvalSpearman] = corr(ahiDataset(ahiDataset>15),cvhriTest(ahiDataset>15),'Type','Spearman')
+%% Separate AHI<15 and AHI >= 15
 
+ahiHigherThan15 = find(ahiDataset>=15);
+ahiLowerThan15 = find(ahiDataset<15);
+
+labelsTestAhiHigherThan15 = [];
+predictionsTestAhiGreaterThan15 = [];
+for kk = 1:numel(ahiHigherThan15)
+    labelsTestAhiHigherThan15 = [labelsTestAhiHigherThan15; labelsTest(subjectTest==ahiHigherThan15(kk))];
+    predictionsTestAhiGreaterThan15 = [predictionsTestAhiGreaterThan15; predictionsTest(subjectTest==ahiHigherThan15(kk))];
+end
+labelsTestAhiLowerThan15 = [];
+predictionsTestAhiLowerThan15 = [];
+for kk = 1:numel(ahiLowerThan15)
+    labelsTestAhiLowerThan15 = [labelsTestAhiLowerThan15; labelsTest(subjectTest==ahiLowerThan15(kk))];
+        predictionsTestAhiLowerThan15 = [predictionsTestAhiLowerThan15; predictionsTest(subjectTest==ahiLowerThan15(kk))];
+end
+
+c = confusionmat(labelsTestAhiHigherThan15,predictionsTestAhiGreaterThan15)
+c = confusionmat(labelsTestAhiLowerThan15,predictionsTestAhiLowerThan15)

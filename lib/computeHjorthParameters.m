@@ -6,7 +6,9 @@ function [ parameters, segments ] = computeHjorthParameters( spo2,spo2Fs,ppi,ppi
 spo2Hjorth = spo2Hjorth(1:size(segments,1),:);
 
 % Output
-parameters = [spo2Hjorth ppiHjorth];
+% parameters = [spo2Hjorth ppiHjorth];
+parameters = [spo2Hjorth];
+
 
 
 end
