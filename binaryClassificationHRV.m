@@ -3,7 +3,6 @@
 clear
 addpath(genpath('lib'));
 rng('default');
-useDoubts = false;
 
 tic
 warning('off')
@@ -24,18 +23,14 @@ for kk = 1:length(files)
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    if useDoubts
-        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
-    else
-        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
-    end
+    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
     load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
         'spo2Processed','spo2Fs','hypno','tHypno');
     load(strcat('results/ppi/',string(subject),'_ppi.mat'));
      
 
-    % Compute Hjorth parameters
-    [hjorthParametersAux, segments] = computeHjorthParameters(spo2Processed,spo2Fs,ppi,ppiFs);
+    % Compute Hjorth parameters. HRV included in hjorthParametersAux
+    [hjorthParametersAux, segments] = computeHjorthParametersAndHRV(spo2Processed,spo2Fs,ppi,ppiFs,ppiNoFilter);
     
     % Compute labels
     labelsAux = computeSegmentLabels(segments, abnormalSegments, apneaSegments, hypoSegments);
@@ -82,8 +77,7 @@ clear
 addpath(genpath('lib'));
 addpath(genpath('models'));
 rng('default');
-plotflag = true;
-useDoubts = false;
+plotflag = false;
 tic
 
 warning('off')
@@ -105,18 +99,14 @@ for kk = 1:length(files)
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    if useDoubts
-        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
-    else
-        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
-    end
+    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
     load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
         'spo2Processed','spo2Fs','hypno','tHypno');
     load(strcat('results/ppi/',string(subject),'_ppi.mat'));
 
 
     % Compute Hjorth parameters
-    [hjorthParametersAux, segments] = computeHjorthParameters(spo2Processed,spo2Fs,ppi,ppiFs);
+    [hjorthParametersAux, segments] = computeHjorthParametersAndHRV(spo2Processed,spo2Fs,ppi,ppiFs,ppiNoFilter);
 
     % Compute labels
     labelsAux = computeSegmentLabels(segments, abnormalSegments, apneaSegments, hypoSegments);
@@ -169,17 +159,13 @@ corrects = []; % rate of correct detections
 for kk = 1:length(files)
 
     % Train
-    trainedClassifier = trainBinaryClassifier([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
+    trainedClassifier = trainBinaryClassifierHRV([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
        
     % Test subject out
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    if useDoubts
-        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
-    else
-        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
-    end
+    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
     if plotflag
         load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
             'nasalPressureProcessed','tNasalPressure','spo2Processed','spo2Fs','tSpo2','hypno','tHypno','tidalVolume');
@@ -190,7 +176,7 @@ for kk = 1:length(files)
     load(strcat('results/ppi/',string(subject),'_ppi.mat'));
 
     % Compute Hjorth parameters
-    [hjorthParametersTestAux, segments] = computeHjorthParameters(spo2Processed,spo2Fs,ppi,ppiFs);
+    [hjorthParametersTestAux, segments] = computeHjorthParametersAndHRV(spo2Processed,spo2Fs,ppi,ppiFs,ppiNoFilter);
 
     % Compute labels
     labelsTestAux = computeSegmentLabels(segments, abnormalSegments, apneaSegments, hypoSegments);
@@ -331,11 +317,11 @@ plotconfusion(labelsTest',predictionsTest');
 
 %% Save/Load results
 
-% save(strcat('results/classification/binaryClassification_noseverehypo.mat'), ...
-%     'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
-
-load(strcat('results/classification/binaryClassification.mat'), ...
+save(strcat('results/classification/binaryClassificationHRV.mat'), ...
     'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
+
+% load(strcat('results/classification/binaryClassification.mat'), ...
+    % 'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
 
 
 
@@ -386,7 +372,6 @@ xticks(0:10:70)
 
 %%
 
-% [rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset<5),cvhriTest(ahiDataset<5),'Type','Pearson','Rows','complete')
 [rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Pearson','Rows','complete')
 [rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset>=15),cvhriTest(ahiDataset>15),'Type','Pearson','Rows','complete')
 

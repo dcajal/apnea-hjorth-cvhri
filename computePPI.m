@@ -11,7 +11,7 @@ for kk = 3:length(dirlist)
     files{kk-2} = dirlist(kk).name;
 end
 
-for kk = 1%:length(files)
+for kk = 1:length(files)
 
     subject = split(files{kk},'_');
     subject = subject(1);
@@ -37,12 +37,12 @@ for kk = 1%:length(files)
 
     tn = gapcorrectorNonLinear(pulses,false); tn(isnan(tn)) = []; tn = unique(tn);
     tPpi = tn(2):1/ppiFs:tn(end);
-    ppi = interp1(tn(2:end),diff(tn),tPpi,'linear');
-    ppi = smooth(tPpi,ppi,20*ppiFs,'loess'); % 2-order polynomial fitting
+    ppiNoFilter = interp1(tn(2:end),diff(tn),tPpi,'linear');
+    ppi = smooth(tPpi,ppiNoFilter,20*ppiFs,'loess'); % 2-order polynomial fitting
     
     subject = split(files{kk},'_');
     subject = subject(1);
-    %save(strcat('results/ppi/',string(subject),'_ppi.mat'),'ppi','ppiFs','tPpi');
+    save(strcat('results/ppi/',string(subject),'_ppi.mat'),'ppi','ppiFs','tPpi','ppiNoFilter');
 
     clear pulses ppgFiltered tn tPpg
     fprintf('Done\n')

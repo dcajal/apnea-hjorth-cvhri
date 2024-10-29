@@ -52,6 +52,7 @@ function [ apneas, hypopneas, doubts ] = annotateRespirationEvents( tidalVolume,
     hypoNoDesat = false(1,size(hypopneas,1));
     for kk = 1:size(hypopneas,1)
         indexes = find(tSpo2>hypopneas(kk,1),1):(find(tSpo2<hypopneas(kk,2),1,'last')+windowMargin);
+        indexes = indexes(indexes<=length(spo2)); % indexes must be constrained to spo2 length
         desaturation = max(spo2(indexes))-min(spo2(indexes));
         if desaturation < 3
             hypoNoDesat(kk) = true;

@@ -1,6 +1,6 @@
 clear all;
 
-load(strcat('results/classification/binaryClassificationOnlyPPI.mat'), ...
+load(strcat('results/classification/binaryClassification_noseverehypo.mat'), ...
     'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
 load(strcat('results/AHI_new.mat'));
 addpath(genpath('models'));

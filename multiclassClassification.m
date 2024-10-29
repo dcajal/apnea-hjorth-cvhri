@@ -3,6 +3,7 @@
 clear
 addpath(genpath('lib'));
 rng('default');
+useDoubts = false;
 
 tic
 warning('off')
@@ -14,8 +15,8 @@ for kk = 3:length(dirlist)
     files{kk-2} = dirlist(kk).name;
 end
 
-% Compute Hj�rth parameters and labels for every subject
-fprintf('Computing Hj�rth parameters and labels for every subject\n');
+% Compute Hjorth parameters and labels for every subject
+fprintf('Computing Hjorth parameters and labels for every subject\n');
 labels = [];
 hjorthParameters = [];
 subjects = [];
@@ -23,7 +24,11 @@ for kk = 1:length(files)
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
+    if useDoubts
+        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
+    else
+        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
+    end
     load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
         'spo2Processed','spo2Fs','hypno','tHypno');
     load(strcat('results/ppi/',string(subject),'_ppi.mat'));
@@ -76,6 +81,7 @@ addpath(genpath('lib'));
 addpath(genpath('models'));
 rng('default');
 plotflag = false;
+useDoubts = false;
 tic
 
 warning('off')
@@ -97,7 +103,11 @@ for kk = 1:length(files)
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
+    if useDoubts
+        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
+    else
+        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
+    end
     load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
         'spo2Processed','spo2Fs','hypno','tHypno');
     load(strcat('results/ppi/',string(subject),'_ppi.mat'));
@@ -155,13 +165,17 @@ corrects = []; % rate of correct detections
 for kk = 1:length(files)
 
     % Train
-    trainedClassifier = trainClassifierOnlySpo2([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
+    trainedClassifier = trainClassifier([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
        
     % Test subject out
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
+    if useDoubts
+        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
+    else
+        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
+    end
     if plotflag
         load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
             'nasalPressureProcessed','tNasalPressure','spo2Processed','spo2Fs','tSpo2','hypno','tHypno','tidalVolume');
@@ -324,8 +338,8 @@ outputs(outputsIdx) = 1;
 plotconfusion(targets,outputs);
 
 %% Save/Load results
-
-% save(strcat('results/classification/multiclassClassificationOnlySpo2.mat'), ...
+ 
+% save(strcat('results/classification/multiclassClassification_noseverehypo.mat'), ...
 %     'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
 
 load(strcat('results/classification/multiclassClassification.mat'), ...
@@ -357,7 +371,7 @@ stem(corrects*100); ylim([0 100])
 xlabel('Subject'); ylabel('Correct detections (%)')
 % hold on; yline(mean(corrects)*100,'--'); 
 hold on; plot(xlim,[mean(corrects,'omitnan')*100 mean(corrects,'omitnan')*100],'--'); 
-mean(corrects,'omitnan')
+mean(corrects,'omitnan')3.
 
 % figure;
 c = confusionmat(labelsTest,predictionsTest)

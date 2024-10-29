@@ -4,10 +4,13 @@
 clear
 addpath(genpath('lib'));
 plotflag = false;
+computeDoubts = false
 
 minNEvent = 2; % Minimum number of events to consider a burst
 maxNEvent = 8; % Maximum number of events in a burst. At maxNEvent+1 may start a new burst that can be labeled as hypo or apnea independently
 maxDistEvent = 180; % Maximum distance between events to consider a burst
+
+doubts = [];
 
 % Load all files in database directory
 dirlist = dir('dataset/nasal_pressure_signals/');
@@ -30,7 +33,7 @@ for kk = 1:length(files)
     basalRespiration = computeBasalRespiration(tidalVolume,spo2Processed,nasalPressureFs,spo2Fs, nasalPressureArtifacts);
     
     [apneas, hypopneas, doubts] = ...
-        annotateRespirationEvents(tidalVolume,nasalPressureFs,basalRespiration,spo2Processed,tSpo2,hypno,true);
+        annotateRespirationEvents(tidalVolume,nasalPressureFs,basalRespiration,spo2Processed,tSpo2,hypno,computeDoubts);
 
     % Remove labels during nasal pressure artifacts
     nasalPressureArtifactsSeconds = (nasalPressureArtifacts-1)/nasalPressureFs;
@@ -56,7 +59,9 @@ for kk = 1:length(files)
     end
     apneas(isnan(apneas(:,1)),:) = [];
     hypopneas(isnan(hypopneas(:,1)),:) = [];
-    doubts(isnan(doubts(:,1)),:) = [];
+    if computeDoubts
+        doubts(isnan(doubts(:,1)),:) = [];
+    end
 
     
     % labels: 1=apnea, 2=hypopneas, 3=doubts
@@ -189,47 +194,47 @@ for kk = 1:length(files)
         end; clear ll
         ylabel('SpO2')
         
-        ax(3) = subplot(513);
-        plot(tAbdBelt,ripSum,'b'); axis tight;
-        hold on
-        for ll=1:size(apneas,1)
-            p(1) = patch([apneas(ll, 1) apneas(ll, 2) apneas(ll, 2) apneas(ll, 1)],[-10 -10 10 10],[1 0 0],'FaceAlpha',.3,'EdgeColor','none');
-        end; clear ll
-        for ll=1:size(hypopneas,1)
-            p(2) = patch([hypopneas(ll, 1) hypopneas(ll, 2) hypopneas(ll, 2) hypopneas(ll, 1)],[-10 -10 10 10],[0 0 1],'FaceAlpha',.3,'EdgeColor','none');
-        end; clear ll
-        for ll=1:size(doubts,1)
-            p(3) = patch([doubts(ll, 1) doubts(ll, 2) doubts(ll, 2) doubts(ll, 1)],[-10 -10 10 10],[0 0 0],'FaceAlpha',.3,'EdgeColor','none');
-        end; clear ll
-        ylabel('RIPsum')
-        
-        ax(4) = subplot(514);
-        p = plot(tHypno,hypno,'b'); axis tight;
-        hold on
-        for ll=1:size(apneas,1)
-            p(1) = patch([apneas(ll, 1) apneas(ll, 2) apneas(ll, 2) apneas(ll, 1)],[0 0 6 6],[1 0 0],'FaceAlpha',.3,'EdgeColor','none');
-        end; clear ll
-        for ll=1:size(hypopneas,1)
-            p(2) = patch([hypopneas(ll, 1) hypopneas(ll, 2) hypopneas(ll, 2) hypopneas(ll, 1)],[0 0 6 6],[0 0 1],'FaceAlpha',.3,'EdgeColor','none');
-        end; clear ll
-        for ll=1:size(doubts,1)
-            p(3) = patch([doubts(ll, 1) doubts(ll, 2) doubts(ll, 2) doubts(ll, 1)],[0 0 6 6],[0 0 0],'FaceAlpha',.3,'EdgeColor','none');
-        end; clear ll
-        xlabel('Time (seconds)');
-        ylabel('Hypnogram')
-        yticks(1:5);
-        yticklabels({'NREM3','NREM2','NREM1','REM','WAKE'})
-
-        ax(5) = subplot(515);
-        hold on
-        for ll = 1:size(apneaSegments,1)
-            p(1) = patch([apneaSegments(ll, 1) apneaSegments(ll, 2) apneaSegments(ll, 2) apneaSegments(ll, 1)],[0 0 2 2],[1 0 0],'EdgeColor','none');
-        end; clear ll
-        for ll = 1:size(hypoSegments,1)
-            p(2) = patch([hypoSegments(ll, 1) hypoSegments(ll, 2) hypoSegments(ll, 2) hypoSegments(ll, 1)],[0 0 2 2],[0 0 1],'EdgeColor','none');
-        end; clear ll
-        ylabel('Segment labels')
-        axis tight;
+        % ax(3) = subplot(513);
+        % plot(tAbdBelt,ripSum,'b'); axis tight;
+        % hold on
+        % for ll=1:size(apneas,1)
+        %     p(1) = patch([apneas(ll, 1) apneas(ll, 2) apneas(ll, 2) apneas(ll, 1)],[-10 -10 10 10],[1 0 0],'FaceAlpha',.3,'EdgeColor','none');
+        % end; clear ll
+        % for ll=1:size(hypopneas,1)
+        %     p(2) = patch([hypopneas(ll, 1) hypopneas(ll, 2) hypopneas(ll, 2) hypopneas(ll, 1)],[-10 -10 10 10],[0 0 1],'FaceAlpha',.3,'EdgeColor','none');
+        % end; clear ll
+        % for ll=1:size(doubts,1)
+        %     p(3) = patch([doubts(ll, 1) doubts(ll, 2) doubts(ll, 2) doubts(ll, 1)],[-10 -10 10 10],[0 0 0],'FaceAlpha',.3,'EdgeColor','none');
+        % end; clear ll
+        % ylabel('RIPsum')
+        % 
+        % ax(4) = subplot(514);
+        % p = plot(tHypno,hypno,'b'); axis tight;
+        % hold on
+        % for ll=1:size(apneas,1)
+        %     p(1) = patch([apneas(ll, 1) apneas(ll, 2) apneas(ll, 2) apneas(ll, 1)],[0 0 6 6],[1 0 0],'FaceAlpha',.3,'EdgeColor','none');
+        % end; clear ll
+        % for ll=1:size(hypopneas,1)
+        %     p(2) = patch([hypopneas(ll, 1) hypopneas(ll, 2) hypopneas(ll, 2) hypopneas(ll, 1)],[0 0 6 6],[0 0 1],'FaceAlpha',.3,'EdgeColor','none');
+        % end; clear ll
+        % for ll=1:size(doubts,1)
+        %     p(3) = patch([doubts(ll, 1) doubts(ll, 2) doubts(ll, 2) doubts(ll, 1)],[0 0 6 6],[0 0 0],'FaceAlpha',.3,'EdgeColor','none');
+        % end; clear ll
+        % xlabel('Time (seconds)');
+        % ylabel('Hypnogram')
+        % yticks(1:5);
+        % yticklabels({'NREM3','NREM2','NREM1','REM','WAKE'})
+        % 
+        % ax(5) = subplot(515);
+        % hold on
+        % for ll = 1:size(apneaSegments,1)
+        %     p(1) = patch([apneaSegments(ll, 1) apneaSegments(ll, 2) apneaSegments(ll, 2) apneaSegments(ll, 1)],[0 0 2 2],[1 0 0],'EdgeColor','none');
+        % end; clear ll
+        % for ll = 1:size(hypoSegments,1)
+        %     p(2) = patch([hypoSegments(ll, 1) hypoSegments(ll, 2) hypoSegments(ll, 2) hypoSegments(ll, 1)],[0 0 2 2],[0 0 1],'EdgeColor','none');
+        % end; clear ll
+        % ylabel('Segment labels')
+        % axis tight;
     
         linkaxes(ax,'x')
         pause
@@ -247,7 +252,11 @@ for kk = 1:length(files)
     ahi = ah/sleeptime*3600;
 
 
-    save(strcat('results/labels/',string(subject),'_newlabels.mat'),...
+    % save(strcat('results/labels/',string(subject),'_newlabels.mat'),...
+    %     'apneas','hypopneas','doubts','apneaSegments','hypoSegments','abnormalSegments', ...
+    %     'sleeptime','ah','ahi');
+
+    save(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'),...
         'apneas','hypopneas','doubts','apneaSegments','hypoSegments','abnormalSegments', ...
         'sleeptime','ah','ahi');
     

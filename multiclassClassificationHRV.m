@@ -3,7 +3,6 @@
 clear
 addpath(genpath('lib'));
 rng('default');
-useDoubts = false;
 
 tic
 warning('off')
@@ -24,18 +23,14 @@ for kk = 1:length(files)
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    if useDoubts
-        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
-    else
-        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
-    end
+    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
     load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
         'spo2Processed','spo2Fs','hypno','tHypno');
     load(strcat('results/ppi/',string(subject),'_ppi.mat'));
      
 
     % Compute Hjorth parameters
-    [hjorthParametersAux, segments] = computeHjorthParameters(spo2Processed,spo2Fs,ppi,ppiFs);
+    [hjorthParametersAux, segments] = computeHjorthParametersAndHRV(spo2Processed,spo2Fs,ppi,ppiFs,ppiNoFilter);
     
     % Compute labels
     labelsAux = computeSegmentLabels(segments, abnormalSegments, apneaSegments, hypoSegments);
@@ -61,11 +56,9 @@ for kk = 1:length(files)
 
 end
 
-labels(labels==2) = 1;
-
 % Random class balancing
 fprintf('Random class balancing... ');
-[hjorthParameters,labels] = balanceRandomBinary(hjorthParameters,labels,subjects);
+[hjorthParameters,labels] = balanceRandom(hjorthParameters,labels,subjects);
 fprintf('Done\n');
 
 learnerMatrix = [hjorthParameters labels];
@@ -82,8 +75,7 @@ clear
 addpath(genpath('lib'));
 addpath(genpath('models'));
 rng('default');
-plotflag = true;
-useDoubts = false;
+plotflag = false;
 tic
 
 warning('off')
@@ -105,18 +97,14 @@ for kk = 1:length(files)
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    if useDoubts
-        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
-    else
-        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
-    end
+    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
     load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
         'spo2Processed','spo2Fs','hypno','tHypno');
     load(strcat('results/ppi/',string(subject),'_ppi.mat'));
 
 
     % Compute Hjorth parameters
-    [hjorthParametersAux, segments] = computeHjorthParameters(spo2Processed,spo2Fs,ppi,ppiFs);
+    [hjorthParametersAux, segments] = computeHjorthParametersAndHRV(spo2Processed,spo2Fs,ppi,ppiFs,ppiNoFilter);
 
     % Compute labels
     labelsAux = computeSegmentLabels(segments, abnormalSegments, apneaSegments, hypoSegments);
@@ -147,11 +135,9 @@ for kk = 1:length(files)
 end; clear labelsAux hjorthParametersAux hypnoLabelsAux kk
 fprintf('\n');
 
-labels(labels==2) = 1;
-
 % Random class balancing
 fprintf('Random class balancing... ');
-[hjorthParameters,labels,subjects] = balanceRandomBinary(hjorthParameters,labels,subjects);
+[hjorthParameters,labels,subjects] = balanceRandom(hjorthParameters,labels,subjects);
 fprintf('Done\n');
 
 toc
@@ -169,17 +155,13 @@ corrects = []; % rate of correct detections
 for kk = 1:length(files)
 
     % Train
-    trainedClassifier = trainBinaryClassifier([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
+    trainedClassifier = trainClassifierHRV([hjorthParameters(subjects~=kk,:) labels(subjects~=kk)]);
        
     % Test subject out
     subject = split(files{kk},'_');
     subject = subject(1);
     fprintf('Computing subject: %s...',string(subject));
-    if useDoubts
-        load(strcat('results/labels/',string(subject),'_newlabels.mat'));
-    else
-        load(strcat('results/labels/',string(subject),'_newlabels_noseverehypo.mat'));
-    end
+    load(strcat('results/labels/',string(subject),'_newlabels.mat'));
     if plotflag
         load(strcat('results/signals/',string(subject),'_psg.mat'),'nasalPressureArtifacts','nasalPressureFs', ...
             'nasalPressureProcessed','tNasalPressure','spo2Processed','spo2Fs','tSpo2','hypno','tHypno','tidalVolume');
@@ -190,7 +172,7 @@ for kk = 1:length(files)
     load(strcat('results/ppi/',string(subject),'_ppi.mat'));
 
     % Compute Hjorth parameters
-    [hjorthParametersTestAux, segments] = computeHjorthParameters(spo2Processed,spo2Fs,ppi,ppiFs);
+    [hjorthParametersTestAux, segments] = computeHjorthParametersAndHRV(spo2Processed,spo2Fs,ppi,ppiFs,ppiNoFilter);
 
     % Compute labels
     labelsTestAux = computeSegmentLabels(segments, abnormalSegments, apneaSegments, hypoSegments);
@@ -213,10 +195,9 @@ for kk = 1:length(files)
     % Predict
     predictionsTestAux = trainedClassifier.predictFcn(hjorthParametersTestAux);
     predictionsTest = [predictionsTest; predictionsTestAux];
-    labelsTestAux(labelsTestAux==2) = 1;
     labelsTest = [labelsTest; labelsTestAux];
     subjectTest = [subjectTest; ones(size(labelsTestAux))*kk];
-
+    
     correctsAux = mean(~xor(labelsTestAux,predictionsTestAux));
     corrects = [corrects; correctsAux];
 
@@ -233,7 +214,7 @@ for kk = 1:length(files)
     end; clear ll aux
     cvhriTestAux = sum(cvhriTestAux,'omitnan')/size(segmentIndexes,1);
     cvhriTest = [cvhriTest; cvhriTestAux];
-           
+
     % Plots    
     if plotflag
 
@@ -295,8 +276,11 @@ for kk = 1:length(files)
         ax(4) = subplot(514);
         hold on
         for ll = 1:size(segments,1)
-            if labelsTestAux(ll)>0 
+            if labelsTestAux(ll)==1 % apnea
                 p(4) = patch([segments(ll, 1) segments(ll, 2) segments(ll, 2) segments(ll, 1)],[0 0 2 2],[1 0 0],'EdgeColor','none');
+            end
+            if labelsTestAux(ll)==2 % hypo
+                p(4) = patch([segments(ll, 1) segments(ll, 2) segments(ll, 2) segments(ll, 1)],[0 0 2 2],[0 0 1],'EdgeColor','none');
             end
         end; clear ll
         plot(tPpi,ppi)
@@ -308,6 +292,9 @@ for kk = 1:length(files)
         for ll = 1:size(segments,1)
             if predictionsTestAux(ll)==1 % apnea
                 p(2) = patch([segments(ll, 1) segments(ll, 2) segments(ll, 2) segments(ll, 1)],[0 0 2 2],[1 0 0],'EdgeColor','none');
+            end
+            if predictionsTestAux(ll)==2 % hypo
+                p(2) = patch([segments(ll, 1) segments(ll, 2) segments(ll, 2) segments(ll, 1)],[0 0 2 2],[0 0 1],'EdgeColor','none');
             end
         end; clear ll
         plot(tPpi,ppi)
@@ -327,15 +314,22 @@ end; clear kk
 toc
 
 c = confusionmat(labelsTest,predictionsTest); %#ok<*NASGU> 
-plotconfusion(labelsTest',predictionsTest');
+
+targets = zeros(3,length(labelsTest));
+outputs = zeros(3,length(predictionsTest));
+targetsIdx = sub2ind(size(targets), labelsTest'+1, 1:length(labelsTest));
+outputsIdx = sub2ind(size(outputs), predictionsTest'+1, 1:length(predictionsTest));
+targets(targetsIdx) = 1;
+outputs(outputsIdx) = 1;
+plotconfusion(targets,outputs);
 
 %% Save/Load results
 
-% save(strcat('results/classification/binaryClassification_noseverehypo.mat'), ...
-%     'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
-
-load(strcat('results/classification/binaryClassification.mat'), ...
+save(strcat('results/classification/multiclassClassificationHRV.mat'), ...
     'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
+
+% load(strcat('results/classification/multiclassClassification.mat'), ...
+    % 'corrects','cvhriTest','labelsTest','predictionsTest','subjectTest');
 
 
 
@@ -367,7 +361,13 @@ mean(corrects,'omitnan')
 
 % figure;
 c = confusionmat(labelsTest,predictionsTest)
-plotconfusion(labelsTest',predictionsTest');
+targets = zeros(3,length(labelsTest(~isnan(labelsTest))));
+outputs = zeros(3,length(predictionsTest(~isnan(labelsTest))));
+targetsIdx = sub2ind(size(targets), labelsTest(~isnan(labelsTest))'+1, 1:length(labelsTest(~isnan(labelsTest))));
+outputsIdx = sub2ind(size(outputs), predictionsTest(~isnan(labelsTest))'+1, 1:length(predictionsTest(~isnan(labelsTest))));
+targets(targetsIdx) = 1;
+outputs(outputsIdx) = 1;
+plotconfusion(targets,outputs);
 
 %% Correlation
 
@@ -382,24 +382,24 @@ xlim([0 70])
 xticks(0:10:70)
 % hold on; plot([15 15],ylim,'--');% plot(xlim,[1/15 1/15],'--')
 
-% saveas(gca, 'results/images/binaryCorrelationOnlyPPI.eps','epsc');
+% saveas(gca, 'results/images/multiclassCorrelationOnlyPPI.eps','epsc');
 
 %%
 
-% [rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset<5),cvhriTest(ahiDataset<5),'Type','Pearson','Rows','complete')
 [rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset<15),cvhriTest(ahiDataset<15),'Type','Pearson','Rows','complete')
 [rhoPearson,pvalPearson] = corr(ahiDataset(ahiDataset>=15),cvhriTest(ahiDataset>15),'Type','Pearson','Rows','complete')
 
-%% Separate AHI<15 and AHI >= 15
 
-ahiHigherThan15 = find(ahiDataset>=15);
+%%
+
+ahiGreaterThan15 = find(ahiDataset>=15);
 ahiLowerThan15 = find(ahiDataset<15);
 
-labelsTestAhiHigherThan15 = [];
+labelsTestAhiGreaterThan15 = [];
 predictionsTestAhiGreaterThan15 = [];
-for kk = 1:numel(ahiHigherThan15)
-    labelsTestAhiHigherThan15 = [labelsTestAhiHigherThan15; labelsTest(subjectTest==ahiHigherThan15(kk))];
-    predictionsTestAhiGreaterThan15 = [predictionsTestAhiGreaterThan15; predictionsTest(subjectTest==ahiHigherThan15(kk))];
+for kk = 1:numel(ahiGreaterThan15)
+    labelsTestAhiGreaterThan15 = [labelsTestAhiGreaterThan15; labelsTest(subjectTest==ahiGreaterThan15(kk))];
+    predictionsTestAhiGreaterThan15 = [predictionsTestAhiGreaterThan15; predictionsTest(subjectTest==ahiGreaterThan15(kk))];
 end
 labelsTestAhiLowerThan15 = [];
 predictionsTestAhiLowerThan15 = [];
@@ -408,5 +408,31 @@ for kk = 1:numel(ahiLowerThan15)
         predictionsTestAhiLowerThan15 = [predictionsTestAhiLowerThan15; predictionsTest(subjectTest==ahiLowerThan15(kk))];
 end
 
-c = confusionmat(labelsTestAhiHigherThan15,predictionsTestAhiGreaterThan15)
+c = confusionmat(labelsTestAhiGreaterThan15,predictionsTestAhiGreaterThan15)
 c = confusionmat(labelsTestAhiLowerThan15,predictionsTestAhiLowerThan15)
+
+%% Prepare vectors for logistic regression
+
+% Thresholds for AHI >=5 stratification
+isAhiGreaterThan5 = ahiDataset>=5;
+cvhriAhiLowerThan5 = cvhriTest(~isAhiGreaterThan5 & ~isnan(cvhriTest));
+cvhriAhiHigherThan5 = cvhriTest(isAhiGreaterThan5 & ~isnan(cvhriTest));
+
+cvhriForGreaterThan5 = [cvhriAhiHigherThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5(1:5)];
+labelsForGreaterThan5 = [true(68,1); false(68,1)]
+
+% cvhriForGreaterThan5 = [cvhriAhiHigherThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5; cvhriAhiLowerThan5(1:19)];
+% labelsForGreaterThan5 = [true(69,1); false(69,1)]
+
+
+% Thresholds for AHI >=15 stratification
+isAhiGreaterThan15 = ahiDataset>=15;
+cvhriAhiLowerThan15 = cvhriTest(~isAhiGreaterThan15 & ~isnan(cvhriTest));
+cvhriAhiHigherThan15 = cvhriTest(isAhiGreaterThan15 & ~isnan(cvhriTest));
+
+cvhriForGreaterThan15 = [cvhriAhiHigherThan15; cvhriAhiLowerThan15; cvhriAhiLowerThan15(1:5);];
+labelsForGreaterThan15 = [true(47,1); false(47,1)]
+
+% cvhriForGreaterThan15 = [cvhriAhiHigherThan15; cvhriAhiLowerThan15; cvhriAhiLowerThan15(1:2);];
+% labelsForGreaterThan15 = [true(48,1); false(48,1)]
+
